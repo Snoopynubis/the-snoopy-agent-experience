@@ -9,4 +9,6 @@ dependencies = [
 	"langchain",
     "langchain-community",
     "langchain-ollama",
+    "langgraph",
+    "mcp[cli]",
 ]

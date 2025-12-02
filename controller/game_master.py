@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Tuple
 
-from agent.area_state import AreaState
+from models.area import AreaState
 
 
 class GameMaster:

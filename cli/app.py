@@ -2,10 +2,11 @@ import os
 import sys
 from typing import Optional
 
-from agent.world_state import WorldState, load_world_state
+from models.world import WorldState, load_world_state
 from cli.renderer import CLIRenderer
-from controller.llm import CharacterResponder
+from actors.character_agent import CharacterAgent, AgentSettings
 from controller.simulation_controller import SimulationController
+from services.llm_client import LLMClient, LLMConfig
 
 try:  # POSIX raw input support
     import termios
@@ -39,12 +40,15 @@ async def run_cli(
     world_state = load_world_state()
     _apply_character_limit(world_state, max_characters)
 
-    responder = CharacterResponder(
+    llm_client = LLMClient(
         enabled=use_llm,
-        thinking_enabled=False,
-        trace_llm=trace_llm,
+        config=LLMConfig(thinking_enabled=False),
     )
-    controller = SimulationController(world_state, responder, debug=debug)
+    character_agent = CharacterAgent(
+        llm_client=llm_client,
+        settings=AgentSettings(trace_llm=trace_llm),
+    )
+    controller = SimulationController(world_state, character_agent, debug=debug)
     renderer = CLIRenderer(debug=debug)
 
     if interactive:

@@ -52,6 +52,20 @@ Enter to advance. Press Esc or `Ctrl+C` any time to end the session. Provide
 `--turns N` if you still want a hard cap; otherwise the simulation continues
 until you exit.
 
+## Architecture overview
+
+- `models/`: world dataclasses plus JSON load/save helpers.
+- `actors/`: LangGraph-powered character agents, prompt builders, and fallbacks.
+- `controller/`: thin orchestrators (`SimulationController`, `GameMaster`, MCP tool metadata).
+- `services/`: infrastructure concerns such as the Ollama `LLMClient` (and MCP wiring next to it).
+- `cli/`: renderer plus runtime harness; only composes higher-level bricks.
+- `data/`: authoritative source-of-truth JSON for areas and characters.
+
+The controller never embeds prompt logic; it simply passes world snapshots into
+`CharacterAgent` instances. That keeps serialization straightforward (use
+`WorldState.snapshot()`) and lets tests simulate specific scenarios by
+instantiating actors directly.
+
 ### Data-driven characters
 
 Each character now lives in its own JSON file under `agent/characters/`. These

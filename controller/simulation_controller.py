@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import List, Optional, Tuple
 
-from agent.area_state import AreaState
-from agent.character_state import CharacterState
-from agent.events import AreaEvent
-from agent.world_state import AreaId, WorldState
+from actors.character_agent import CharacterAgent
+from models.area import AreaState
+from models.character import CharacterState
+from models.event import AreaEvent
+from models.world import AreaId, WorldState
 from controller.game_master import GameMaster
-from controller.llm import CharacterResponder
 from controller.mcp_tools import MCP_TOOLS
 from controller.models import CharacterAction
 
@@ -18,12 +18,12 @@ class SimulationController:
     def __init__(
         self,
         world_state: WorldState,
-        responder: Optional[CharacterResponder] = None,
+        character_agent: Optional[CharacterAgent] = None,
         debug: bool = False,
         game_master: Optional[GameMaster] = None,
     ) -> None:
         self.world_state = world_state
-        self.responder = responder or CharacterResponder()
+        self.character_agent = character_agent or CharacterAgent()
         self.turn_counter = 0
         self.debug = debug
         self._area_name_to_id = {
@@ -69,7 +69,7 @@ class SimulationController:
             area_id=area_id, character_name=character.name
         )
 
-        action = await self.responder.generate_action(
+        action = await self.character_agent.generate_action(
             character=character,
             area=area,
             public_context=public_context,

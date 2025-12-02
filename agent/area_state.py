@@ -1,8 +1,8 @@
-from dataclasses import dataclass
+"""Backward-compatible shim for legacy imports.
 
+Prefer importing :class:`AreaState` from ``models.area`` going forward.
+"""
 
-@dataclass
-class AreaState:
-    name: str
-    description: str
-    informal_state: str = ""
+from models.area import AreaState
+
+__all__ = ["AreaState"]

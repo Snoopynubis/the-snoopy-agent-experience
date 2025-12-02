@@ -1,8 +1,8 @@
 from collections import defaultdict
 from typing import Dict, List
 
-from agent.events import AreaEvent
-from agent.world_state import WorldState
+from models.event import AreaEvent
+from models.world import WorldState
 
 TURN_COLOR = "\033[31m"
 RESET_COLOR = "\033[0m"

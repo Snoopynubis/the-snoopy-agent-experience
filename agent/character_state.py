@@ -1,13 +1,8 @@
-from dataclasses import dataclass
+"""Backward-compatible shim for legacy imports.
 
+Prefer importing :class:`CharacterState` from ``models.character`` going forward.
+"""
 
-@dataclass
-class CharacterState:
-    name: str
-    description: str
+from models.character import CharacterState
 
-    memory: str
-    mood: str
-    energy_level: float
-    internal_prompt: str
-    external_prompt: str
+__all__ = ["CharacterState"]
