@@ -30,6 +30,20 @@ can distinguish them from dialogue.
 By default the Ollama client is invoked with `thinking` disabled to keep DeepSeek
 responses short. Combine `--fast` or `--no-llm` to bypass Ollama entirely.
 
+### Fast mode vs standard play
+
+Standard mode (no `--fast`) keeps the full cast, lets each character call out to
+the local Ollama model, and therefore produces slower—but more varied—turns. Use
+this when you want the richest RP output and do not mind the latency of local
+LLM calls.
+
+Fast mode flips three switches at once: it disables the LLM entirely, trims the
+active roster to the first three characters, and relies on deterministic
+heuristics for dialogue. The run finishes much faster and is perfect for smoke
+tests or exercising the controller logic, but the conversations are intentionally
+repetitive. If you only want to skip LLM calls while keeping the full cast, use
+`--no-llm` instead of `--fast`.
+
 ### Interactive stepping
 
 Need to narrate the action turn-by-turn? Launch the CLI with `--interactive` to

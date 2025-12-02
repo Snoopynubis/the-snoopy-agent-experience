@@ -238,6 +238,7 @@ class CharacterResponder:
         directed_context: str,
         area_state: str,
         turn_seed: int,
+        area_overview: Optional[List[tuple[str, List[str]]]] = None,
     ) -> CharacterAction:
         others = [name for name in room_occupants if name != character.name]
         topic_source = directed_context or public_context or area_state or area.description
@@ -289,6 +290,16 @@ class CharacterResponder:
             "Team, {topic}. We can turn {area} into momentum.",
             "Listen up! {topic}. {area} gives us room to improvise.",
         ]
+        move_target = None
+        if not others and area_overview:
+            populated = [
+                (name, len(names or []))
+                for name, names in area_overview
+                if name != area.name and names
+            ]
+            if populated:
+                populated.sort(key=lambda item: item[1], reverse=True)
+                move_target = populated[0][0]
         seed = sum(ord(c) for c in (character.name + area.name + topic_line)) + turn_seed
         if character.name.lower() in topic_line.lower():
             topic_line = area.description
@@ -306,6 +317,7 @@ class CharacterResponder:
             addressed_to=None,
             informal=False,
             tool="broadcast",
+            move_to_area=move_target,
         )
 
     def _trace(self, label: str, text: str, color: str, status: str = "") -> None:
