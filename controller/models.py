@@ -1,0 +1,9 @@
+from dataclasses import dataclass
+from typing import List, Optional
+
+
+@dataclass
+class CharacterAction:
+    content: str
+    addressed_to: Optional[List[str]] = None
+    informal: bool = False
