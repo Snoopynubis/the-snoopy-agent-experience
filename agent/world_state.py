@@ -4,10 +4,11 @@ import json
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Tuple
+from typing import Any, List
 
 from agent.area_state import AreaState
 from agent.character_state import CharacterState
+from agent.events import AreaEvent
 
 AreaId = int
 
@@ -17,7 +18,7 @@ class WorldState:
     available_areas: List[AreaState]
     characters_in_area: List[AreaId]
     characters: List[CharacterState]
-    events: List[Tuple[AreaId, str]]
+    events: List[AreaEvent]
 
     def get_area_by_id(self, area_id: AreaId) -> AreaState:
         return self.available_areas[area_id]
@@ -34,20 +35,20 @@ def load_world_state(
     """Load the world definition from JSON files.
 
     When ``areas_path`` or ``characters_path`` is omitted, the files inside the
-    package (``agent/areas/areas.json`` and ``agent/characters/characters.json``)
-    are used.
+    package (``agent/areas/areas.json`` and all ``*.json`` files under
+    ``agent/characters``) are used.
     """
 
     base_dir = Path(__file__).resolve().parent
     resolved_areas_path = _resolve_data_path(
         areas_path, base_dir / "areas" / "areas.json"
     )
-    resolved_characters_path = _resolve_data_path(
-        characters_path, base_dir / "characters" / "characters.json"
+    resolved_characters_path = _resolve_character_path(
+        characters_path, base_dir / "characters"
     )
 
     areas_payload = _load_json_array(resolved_areas_path)
-    characters_payload = _load_json_array(resolved_characters_path)
+    characters_payload = _load_character_payloads(resolved_characters_path)
 
     area_states = [
         AreaState(name=item["name"], description=item["description"])
@@ -74,6 +75,8 @@ def load_world_state(
                 memory=item.get("memory", ""),
                 mood=item.get("mood", "Neutral"),
                 energy_level=float(item.get("energy_level", 0.5)),
+                internal_prompt=item.get("prompt_internal", ""),
+                external_prompt=item.get("prompt_external", ""),
             )
         )
 
@@ -98,4 +101,34 @@ def _load_json_array(path: Path) -> List[dict[str, Any]]:
     if not isinstance(payload, list):
         raise ValueError(
             f"Expected list in {path}, got {type(payload).__name__}")
+    return payload
+
+
+def _resolve_character_path(provided: str | Path | None, default: Path) -> Path:
+    path = Path(provided) if provided else default
+    if not path.exists():
+        raise FileNotFoundError(f"Missing character data path: {path}")
+    return path
+
+
+def _load_character_payloads(path: Path) -> List[dict[str, Any]]:
+    if path.is_file():
+        return [_load_json_object(path)]
+    if path.is_dir():
+        payloads: List[dict[str, Any]] = []
+        for file_path in sorted(path.glob("*.json")):
+            payloads.append(_load_json_object(file_path))
+        if not payloads:
+            raise ValueError(f"No character JSON files found in {path}")
+        return payloads
+    raise ValueError(f"Unsupported character path type: {path}")
+
+
+def _load_json_object(path: Path) -> dict[str, Any]:
+    with path.open(encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, dict):
+        raise ValueError(
+            f"Expected dict in character file {path}, got {type(payload).__name__}"
+        )
     return payload

@@ -1,15 +1,19 @@
-from agent.world_state import load_world_state
+import argparse
+import asyncio
+
+from cli.app import run_cli
 
 
-def main():
-    world_state = load_world_state()
-    print(
-        "Loaded",
-        len(world_state.available_areas),
-        "areas and",
-        len(world_state.characters),
-        "characters from data files.",
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run the Snoopy simulation CLI")
+    parser.add_argument(
+        "--turns",
+        type=int,
+        default=None,
+        help="Number of turns to simulate (defaults to env or 3)",
     )
+    args = parser.parse_args()
+    asyncio.run(run_cli(args.turns))
 
 
 if __name__ == "__main__":

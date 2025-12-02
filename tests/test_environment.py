@@ -5,6 +5,11 @@ import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from agent.constants import OLLAMA_MODEL, OLLAMA_SERVER_URL
 from agent.world_state import load_world_state
