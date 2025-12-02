@@ -51,7 +51,11 @@ def load_world_state(
     characters_payload = _load_character_payloads(resolved_characters_path)
 
     area_states = [
-        AreaState(name=item["name"], description=item["description"])
+        AreaState(
+            name=item["name"],
+            description=item["description"],
+            informal_state=item.get("informal_state", ""),
+        )
         for item in areas_payload
     ]
 

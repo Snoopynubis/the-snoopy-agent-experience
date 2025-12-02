@@ -22,6 +22,8 @@ can distinguish them from dialogue.
 - `--debug` prints the per-character flow, including moves between areas.
 - `--fast` disables LLM calls and caps the cast at three characters.
 - `--no-llm` keeps the full roster but still skips Ollama.
+- `--trace-llm` color-codes every prompt/response pair exchanged with the LLM (or
+	highlights when prompts are skipped because the LLM is disabled).
 - `--max-characters N` is handy when profiling or iterating on a subset.
 
 By default the Ollama client is invoked with `thinking` disabled to keep DeepSeek
@@ -32,8 +34,28 @@ responses short. Combine `--fast` or `--no-llm` to bypass Ollama entirely.
 Each character now lives in its own JSON file under `agent/characters/`. These
 definitions include the internal pre-prompt (only visible to the model) and the
 external description that other characters or UIs may show. Areas remain defined
-in `agent/areas/areas.json`, and characters may optionally move between areas by
-returning a `move_to_area` value in their action JSON.
+in `agent/areas/areas.json`, ship with a mutable `informal_state`, and
+characters may optionally move between areas by returning a `move_to_area`
+value in their action JSON.
+
+## MCP-oriented turn flow
+
+Every character turn is modelled as an MCP-style tool call. The following tools
+are available (see `controller/mcp_tools.py`):
+
+- `room_status` (auto-run each turn) — returns the occupants and current vibe of
+	the room.
+- `broadcast` — talk to everyone present (@all).
+- `direct_message` — focus on one or more listeners inside the same room.
+- `informal_action` — stage directions or gestures flagged as informal.
+- `reflect` — think out loud; only the speaker “hears” it.
+- `area_update` — suggest a change to the area's informal state; the in-engine
+	Game Master validates the proposal before applying it.
+
+Each LLM response must specify which tool it is invoking plus optional fields
+such as `addressed_to`, `area_state_update`, and `move_to_area`. The
+`GameMaster` (see `controller/game_master.py`) reviews requested area updates to
+keep the RP consistent.
 
 ## Smoke tests
 

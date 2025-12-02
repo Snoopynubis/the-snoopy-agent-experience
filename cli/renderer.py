@@ -19,7 +19,8 @@ class CLIRenderer:
         for area_id, area in enumerate(world_state.available_areas):
             occupants = self._characters_in_area(area_id, world_state)
             occupants_display = ", ".join(occupants) if occupants else "(empty)"
-            print(f"{LABEL_COLOR}{area.name}:{RESET_COLOR} {occupants_display}")
+            vibe = f" | vibe: {area.informal_state}" if area.informal_state else ""
+            print(f"{LABEL_COLOR}{area.name}:{RESET_COLOR} {occupants_display}{vibe}")
         print()
 
     def render_turn(
@@ -46,12 +47,12 @@ class CLIRenderer:
                 speaker = f"{event.character} (informal)" if event.informal else event.character
                 color = INFORMAL_COLOR if event.informal else ""
                 reset = RESET_COLOR if color else ""
-                addressed = (
-                    f" -> {', '.join(event.addressed_to)}"
-                    if event.addressed_to
-                    else ""
-                )
-                print(f"  {color}{speaker}{reset}: {event.content}{addressed}")
+                if event.addressed_to:
+                    target = ", ".join(event.addressed_to)
+                    addressed = f" -> @{target}"
+                else:
+                    addressed = " -> @all"
+                print(f"  {color}{speaker}{reset}{addressed}: {event.content}")
             print()
 
     def _characters_in_area(self, area_id: int, world_state: WorldState) -> List[str]:

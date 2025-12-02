@@ -33,6 +33,11 @@ def main() -> None:
         default=None,
         help="Limit the number of active characters (useful for profiling)",
     )
+    parser.add_argument(
+        "--trace-llm",
+        action="store_true",
+        help="Color-highlight prompts/responses exchanged with Ollama",
+    )
     args = parser.parse_args()
 
     use_llm = not args.no_llm
@@ -43,6 +48,7 @@ def main() -> None:
             fast_mode=args.fast,
             use_llm=use_llm,
             max_characters=args.max_characters,
+            trace_llm=args.trace_llm,
         )
     )
 

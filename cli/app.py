@@ -13,6 +13,7 @@ async def run_cli(
     fast_mode: bool = False,
     use_llm: bool = True,
     max_characters: Optional[int] = None,
+    trace_llm: bool = False,
 ) -> None:
     desired_turns = turns or _env_turns() or 3
     if fast_mode:
@@ -22,7 +23,11 @@ async def run_cli(
     world_state = load_world_state()
     _apply_character_limit(world_state, max_characters)
 
-    responder = CharacterResponder(enabled=use_llm, thinking_enabled=False)
+    responder = CharacterResponder(
+        enabled=use_llm,
+        thinking_enabled=False,
+        trace_llm=trace_llm,
+    )
     controller = SimulationController(world_state, responder, debug=debug)
     renderer = CLIRenderer(debug=debug)
 

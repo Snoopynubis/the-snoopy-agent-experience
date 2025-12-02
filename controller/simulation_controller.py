@@ -6,7 +6,10 @@ from agent.area_state import AreaState
 from agent.character_state import CharacterState
 from agent.events import AreaEvent
 from agent.world_state import AreaId, WorldState
+from controller.game_master import GameMaster
 from controller.llm import CharacterResponder
+from controller.mcp_tools import MCP_TOOLS
+from controller.models import CharacterAction
 
 
 class SimulationController:
@@ -17,6 +20,7 @@ class SimulationController:
         world_state: WorldState,
         responder: Optional[CharacterResponder] = None,
         debug: bool = False,
+        game_master: Optional[GameMaster] = None,
     ) -> None:
         self.world_state = world_state
         self.responder = responder or CharacterResponder()
@@ -25,6 +29,7 @@ class SimulationController:
         self._area_name_to_id = {
             area.name: idx for idx, area in enumerate(world_state.available_areas)
         }
+        self.game_master = game_master or GameMaster()
 
     async def play_turn(self) -> List[AreaEvent]:
         """Run one sequential turn for every character."""
@@ -48,6 +53,7 @@ class SimulationController:
             f"Character {character.name} preparing to act in {self.world_state.get_area_by_id(area_id).name}"
         )
         area = self.world_state.get_area_by_id(area_id)
+        room_occupants = [char.name for char in self.get_area_population(area_id)]
         public_context, directed_context = self._compile_context(
             area_id=area_id, character_name=character.name
         )
@@ -58,22 +64,41 @@ class SimulationController:
             public_context=public_context,
             directed_context=directed_context,
             area_catalog=self.world_state.available_areas,
+            room_occupants=room_occupants,
+            area_state=area.informal_state,
+            tool_catalog=MCP_TOOLS,
         )
 
         if not action.content.strip():
             return None
+
+        addressed = self._determine_audience(action, room_occupants, character.name)
 
         event = AreaEvent(
             area_id=area_id,
             turn=self.turn_counter,
             character=character.name,
             content=action.content,
-            addressed_to=action.addressed_to,
-            informal=action.informal,
+            addressed_to=addressed,
+            informal=action.informal or action.tool == "informal_action",
         )
 
         if action.move_to_area:
             self._move_character(idx, character, action.move_to_area)
+
+        if action.area_state_update:
+            approved, reason = self.game_master.approve_area_update(
+                area, character.name, action.area_state_update
+            )
+            if approved:
+                area.informal_state = action.area_state_update
+                self._log(
+                    f"Area '{area.name}' vibe updated by {character.name}: {area.informal_state}"
+                )
+            else:
+                self._log(
+                    f"Area update rejected ({reason}) for {character.name} in {area.name}"
+                )
 
         return event
 
@@ -115,6 +140,23 @@ class SimulationController:
             occupants = self.get_area_population(area_id)
             snapshot.append((area, [char.name for char in occupants]))
         return snapshot
+
+    def _determine_audience(
+        self,
+        action: CharacterAction,
+        room_occupants: List[str],
+        speaker_name: str,
+    ) -> Optional[List[str]]:
+        if action.tool == "broadcast":
+            return None
+        if action.tool == "direct_message":
+            targets = [
+                name for name in (action.addressed_to or []) if name in room_occupants
+            ]
+            return targets or None
+        if action.tool == "reflect":
+            return [speaker_name]
+        return action.addressed_to
 
     def _move_character(
         self, idx: int, character: CharacterState, destination: str
