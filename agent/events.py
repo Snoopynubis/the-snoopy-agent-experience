@@ -10,6 +10,7 @@ class AreaEvent:
     content: str
     addressed_to: Optional[List[str]]
     informal: bool = False
+    tool: str = "informal_action"
 
     def is_addressed_to(self, target: str) -> bool:
         if self.addressed_to is None:

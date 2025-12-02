@@ -18,6 +18,11 @@ MCP_TOOLS: List[MCPTool] = [
         usage="Use before acting so you know who can hear you."
     ),
     MCPTool(
+        name="room_peek",
+        summary="Preview who is in every other area to decide whether to relocate.",
+        usage="Consult this before setting 'move_to_area'—prefer rooms that already have people."
+    ),
+    MCPTool(
         name="broadcast",
         summary="Address everyone in the current area (@all).",
         usage="Set 'addressed_to' to null and write dialogue for the whole room."

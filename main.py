@@ -38,6 +38,11 @@ def main() -> None:
         action="store_true",
         help="Color-highlight prompts/responses exchanged with Ollama",
     )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Step through turns manually (Enter advances, Esc/Ctrl+C exits)",
+    )
     args = parser.parse_args()
 
     use_llm = not args.no_llm
@@ -49,6 +54,7 @@ def main() -> None:
             use_llm=use_llm,
             max_characters=args.max_characters,
             trace_llm=args.trace_llm,
+            interactive=args.interactive,
         )
     )
 

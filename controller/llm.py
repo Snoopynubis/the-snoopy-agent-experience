@@ -51,6 +51,8 @@ class CharacterResponder:
         room_occupants: Optional[List[str]] = None,
         area_state: str = "",
         tool_catalog: Optional[List[MCPTool]] = None,
+        turn_seed: int = 0,
+        area_overview: Optional[List[tuple[str, List[str]]]] = None,
     ) -> CharacterAction:
         tool_catalog = tool_catalog or MCP_TOOLS
         prompt = self._compose_prompt(
@@ -62,6 +64,7 @@ class CharacterResponder:
             room_occupants=room_occupants,
             area_state=area_state,
             tool_catalog=tool_catalog,
+            area_overview=area_overview,
         )
 
         sent_to_llm = self._llm is not None
@@ -70,7 +73,16 @@ class CharacterResponder:
             self._trace("PROMPT", prompt, PROMPT_COLOR, status)
 
         if self._llm is None:
-            fallback = self._fallback_action(character, public_context, directed_context)
+            fallback = self._fallback_action(
+                character=character,
+                area=area,
+                room_occupants=room_occupants or [],
+                public_context=public_context,
+                directed_context=directed_context,
+                area_state=area_state,
+                turn_seed=turn_seed,
+                area_overview=area_overview,
+            )
             if self.trace_llm:
                 self._trace("RESPONSE", f"[fallback] {fallback.content}", RESPONSE_COLOR)
             return fallback
@@ -82,7 +94,16 @@ class CharacterResponder:
             return self._parse_response(response_text)
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.warning("Falling back to heuristic action: %s", exc)
-            fallback = self._fallback_action(character, public_context, directed_context)
+            fallback = self._fallback_action(
+                character=character,
+                area=area,
+                room_occupants=room_occupants or [],
+                public_context=public_context,
+                directed_context=directed_context,
+                area_state=area_state,
+                turn_seed=turn_seed,
+                area_overview=area_overview,
+            )
             if self.trace_llm:
                 self._trace(
                     "RESPONSE",
@@ -117,6 +138,7 @@ class CharacterResponder:
         room_occupants: Optional[List[str]] = None,
         area_state: str = "",
         tool_catalog: Optional[List[MCPTool]] = None,
+        area_overview: Optional[List[tuple[str, List[str]]]] = None,
     ) -> str:
         available_names = (
             ", ".join(entry.name for entry in area_catalog)
@@ -129,10 +151,19 @@ class CharacterResponder:
             f"- {tool.name}: {tool.summary} Usage: {tool.usage}"
             for tool in (tool_catalog or [])
         )
+        overview_lines = []
+        if area_overview:
+            for name, names in area_overview:
+                roster = ", ".join(names) if names else "empty"
+                label = f"{name}: {roster}"
+                if name == area.name:
+                    label += " (you are here)"
+                overview_lines.append(f"- {label}")
+        room_peek_text = "\n".join(overview_lines) if overview_lines else "No additional rooms to peek."
         action_tool_names = [
             tool.name
             for tool in (tool_catalog or [])
-            if tool.name != "room_status"
+            if tool.name not in {"room_status", "room_peek"}
         ]
         allowed_actions = ", ".join(action_tool_names) or "informal_action"
         return (
@@ -142,6 +173,8 @@ class CharacterResponder:
             f"Personal memory: {character.memory}.\n"
             f"Occupants in the room (via room_status tool): {occupants}.\n"
             f"Current informal scene notes: {area_vibe}\n"
+            "Room peek overview (who is in every area):\n"
+            f"{room_peek_text}\n"
             "Recent public happenings in this area:\n"
             f"{public_context if public_context else 'None yet.'}\n"
             "Messages specifically to you:\n"
@@ -156,6 +189,10 @@ class CharacterResponder:
             f"{available_names}.\n"
             "Always include 'tool' (one of "
             f"{allowed_actions}) and 'area_state_update' (string or null).\n"
+            "Default to 'broadcast' when more than one listener is present."
+            "Use 'direct_message' only when focusing someone specific and reserve"
+            " 'reflect' for rare moments when you are completely alone.\n"
+            "Use the room_peek overview if you feel lonely—it's encouraged to move where the conversation is.\n"
             f"Stay in character, keep the reply concise (< {min(self.max_tokens, 120)} tokens),\n"
             "and never include additional commentary besides the JSON object."
         )
@@ -195,18 +232,81 @@ class CharacterResponder:
     def _fallback_action(
         self,
         character: CharacterState,
+        area: AreaState,
+        room_occupants: List[str],
         public_context: str,
         directed_context: str,
+        area_state: str,
+        turn_seed: int,
     ) -> CharacterAction:
-        snippet = directed_context or public_context or "Quiet room."
-        summary = snippet.splitlines()[0] if snippet else "Quiet room."
-        content = (
-            f"{character.name} reflects: {summary}"
-            if summary
-            else f"{character.name} pauses to gather their thoughts."
+        others = [name for name in room_occupants if name != character.name]
+        topic_source = directed_context or public_context or area_state or area.description
+        topic_line = topic_source.splitlines()[-1] if topic_source else ""
+        if ":" in topic_line:
+            topic_line = topic_line.split(":", 1)[1].strip()
+        topic_line = topic_line or f"what to do in {area.name}"
+        lowered = topic_line.lower()
+        if any(
+            marker in lowered
+            for marker in ("let's tackle", "hey everyone", "what do you think")
+        ) or "@" in topic_line or "->" in topic_source:
+            topic_line = area.description
+        topic_line = topic_line[:120]
+
+        def _clean_fragment(fragment: str) -> str:
+            fragment = " ".join(fragment.split())
+            fragment = fragment.strip(" ,.!?")
+            return fragment or area.description
+
+        if others:
+            listener = others[0]
+            if listener.lower() in topic_line.lower():
+                topic_line = area.description
+            for token in (listener, listener.split()[0] if " " in listener else listener):
+                topic_line = topic_line.replace(token, "").strip()
+            for token in (character.name, character.name.split()[0]):
+                topic_line = topic_line.replace(token, "").strip()
+            if not topic_line:
+                topic_line = area.description
+            topic_line = _clean_fragment(topic_line)
+            templates = [
+                "{listener}, let's tackle {topic}. I'll cover the opening move if you chime in.",
+                "{listener}, can you back me up while I handle {topic}?",
+                "Hey {listener}, {topic}. What do you think?",
+            ]
+            seed = sum(ord(c) for c in (character.name + topic_line)) + turn_seed
+            template = templates[seed % len(templates)]
+            content = template.format(listener=listener, topic=topic_line)
+            return CharacterAction(
+                content=content,
+                addressed_to=[listener],
+                informal=False,
+                tool="direct_message",
+            )
+
+        broadcast_templates = [
+            "Hey everyone, {topic}. Let's bend {area} to our plan.",
+            "Team, {topic}. We can turn {area} into momentum.",
+            "Listen up! {topic}. {area} gives us room to improvise.",
+        ]
+        seed = sum(ord(c) for c in (character.name + area.name + topic_line)) + turn_seed
+        if character.name.lower() in topic_line.lower():
+            topic_line = area.description
+        for token in (character.name, character.name.split()[0]):
+            topic_line = topic_line.replace(token, "").strip()
+        if not topic_line:
+            topic_line = area.description
+        topic_line = _clean_fragment(topic_line)
+        content = broadcast_templates[seed % len(broadcast_templates)].format(
+            topic=topic_line,
+            area=area.name,
         )
-        informal = "gesture" in summary.lower() or "quiet" in summary.lower()
-        return CharacterAction(content=content, informal=informal, tool="reflect")
+        return CharacterAction(
+            content=content,
+            addressed_to=None,
+            informal=False,
+            tool="broadcast",
+        )
 
     def _trace(self, label: str, text: str, color: str, status: str = "") -> None:
         suffix = f" ({status})" if status else ""

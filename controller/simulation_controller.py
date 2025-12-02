@@ -35,10 +35,13 @@ class SimulationController:
         """Run one sequential turn for every character."""
         self.turn_counter += 1
         turn_events: List[AreaEvent] = []
+        area_snapshot = self.snapshot_area_overview()
 
         for idx, character in enumerate(self.world_state.characters):
             area_id = self.world_state.characters_in_area[idx]
-            event = await self._handle_character_turn(idx, character, area_id)
+            event = await self._handle_character_turn(
+                idx, character, area_id, area_snapshot
+            )
             if event:
                 self.world_state.events.append(event)
                 turn_events.append(event)
@@ -46,7 +49,11 @@ class SimulationController:
         return turn_events
 
     async def _handle_character_turn(
-        self, idx: int, character: CharacterState, area_id: AreaId
+        self,
+        idx: int,
+        character: CharacterState,
+        area_id: AreaId,
+        area_snapshot: List[tuple[AreaState, List[str]]],
     ) -> Optional[AreaEvent]:
         """Process a single character's turn and return an event or None."""
         self._log(
@@ -54,6 +61,10 @@ class SimulationController:
         )
         area = self.world_state.get_area_by_id(area_id)
         room_occupants = [char.name for char in self.get_area_population(area_id)]
+        area_overview = [
+            (snapshot_area.name, occupants)
+            for snapshot_area, occupants in area_snapshot
+        ]
         public_context, directed_context = self._compile_context(
             area_id=area_id, character_name=character.name
         )
@@ -67,6 +78,8 @@ class SimulationController:
             room_occupants=room_occupants,
             area_state=area.informal_state,
             tool_catalog=MCP_TOOLS,
+            area_overview=area_overview,
+            turn_seed=self.turn_counter,
         )
 
         if not action.content.strip():
@@ -81,6 +94,7 @@ class SimulationController:
             content=action.content,
             addressed_to=addressed,
             informal=action.informal or action.tool == "informal_action",
+            tool=action.tool,
         )
 
         if action.move_to_area:

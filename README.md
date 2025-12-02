@@ -25,9 +25,18 @@ can distinguish them from dialogue.
 - `--trace-llm` color-codes every prompt/response pair exchanged with the LLM (or
 	highlights when prompts are skipped because the LLM is disabled).
 - `--max-characters N` is handy when profiling or iterating on a subset.
+- `--interactive` waits for you to press Enter before each turn (Esc/Ctrl+C exits).
 
 By default the Ollama client is invoked with `thinking` disabled to keep DeepSeek
 responses short. Combine `--fast` or `--no-llm` to bypass Ollama entirely.
+
+### Interactive stepping
+
+Need to narrate the action turn-by-turn? Launch the CLI with `--interactive` to
+pause the simulation before each round. After the area overview prints, tap
+Enter to advance. Press Esc or `Ctrl+C` any time to end the session. Provide
+`--turns N` if you still want a hard cap; otherwise the simulation continues
+until you exit.
 
 ### Data-driven characters
 
