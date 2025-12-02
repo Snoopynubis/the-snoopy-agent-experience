@@ -7,3 +7,4 @@ class CharacterAction:
     content: str
     addressed_to: Optional[List[str]] = None
     informal: bool = False
+    move_to_area: Optional[str] = None

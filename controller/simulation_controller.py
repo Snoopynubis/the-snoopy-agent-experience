@@ -16,46 +16,66 @@ class SimulationController:
         self,
         world_state: WorldState,
         responder: Optional[CharacterResponder] = None,
+        debug: bool = False,
     ) -> None:
         self.world_state = world_state
         self.responder = responder or CharacterResponder()
         self.turn_counter = 0
+        self.debug = debug
+        self._area_name_to_id = {
+            area.name: idx for idx, area in enumerate(world_state.available_areas)
+        }
 
     async def play_turn(self) -> List[AreaEvent]:
         """Run one sequential turn for every character."""
-
         self.turn_counter += 1
         turn_events: List[AreaEvent] = []
 
         for idx, character in enumerate(self.world_state.characters):
             area_id = self.world_state.characters_in_area[idx]
-            area = self.world_state.get_area_by_id(area_id)
-            public_context, directed_context = self._compile_context(
-                area_id=area_id,
-                character_name=character.name,
-            )
-            action = await self.responder.generate_action(
-                character=character,
-                area=area,
-                public_context=public_context,
-                directed_context=directed_context,
-            )
-
-            if not action.content.strip():
-                continue
-
-            event = AreaEvent(
-                area_id=area_id,
-                turn=self.turn_counter,
-                character=character.name,
-                content=action.content,
-                addressed_to=action.addressed_to,
-                informal=action.informal,
-            )
-            self.world_state.events.append(event)
-            turn_events.append(event)
+            event = await self._handle_character_turn(idx, character, area_id)
+            if event:
+                self.world_state.events.append(event)
+                turn_events.append(event)
 
         return turn_events
+
+    async def _handle_character_turn(
+        self, idx: int, character: CharacterState, area_id: AreaId
+    ) -> Optional[AreaEvent]:
+        """Process a single character's turn and return an event or None."""
+        self._log(
+            f"Character {character.name} preparing to act in {self.world_state.get_area_by_id(area_id).name}"
+        )
+        area = self.world_state.get_area_by_id(area_id)
+        public_context, directed_context = self._compile_context(
+            area_id=area_id, character_name=character.name
+        )
+
+        action = await self.responder.generate_action(
+            character=character,
+            area=area,
+            public_context=public_context,
+            directed_context=directed_context,
+            area_catalog=self.world_state.available_areas,
+        )
+
+        if not action.content.strip():
+            return None
+
+        event = AreaEvent(
+            area_id=area_id,
+            turn=self.turn_counter,
+            character=character.name,
+            content=action.content,
+            addressed_to=action.addressed_to,
+            informal=action.informal,
+        )
+
+        if action.move_to_area:
+            self._move_character(idx, character, action.move_to_area)
+
+        return event
 
     def _compile_context(
         self,
@@ -88,3 +108,28 @@ class SimulationController:
 
     def get_area(self, area_id: AreaId) -> AreaState:
         return self.world_state.get_area_by_id(area_id)
+
+    def snapshot_area_overview(self) -> List[tuple[AreaState, List[str]]]:
+        snapshot: List[tuple[AreaState, List[str]]] = []
+        for area_id, area in enumerate(self.world_state.available_areas):
+            occupants = self.get_area_population(area_id)
+            snapshot.append((area, [char.name for char in occupants]))
+        return snapshot
+
+    def _move_character(
+        self, idx: int, character: CharacterState, destination: str
+    ) -> None:
+        target_id = self._area_name_to_id.get(destination)
+        if target_id is None:
+            self._log(
+                f"Character {character.name} requested unknown area '{destination}'. Ignoring move."
+            )
+            return
+        self.world_state.characters_in_area[idx] = target_id
+        self._log(
+            f"Character {character.name} moves to {self.world_state.get_area_by_id(target_id).name}"
+        )
+
+    def _log(self, message: str) -> None:
+        if self.debug:
+            print(f"[DEBUG] {message}")

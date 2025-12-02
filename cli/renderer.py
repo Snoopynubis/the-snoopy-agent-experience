@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Dict, Iterable, List
+from typing import Dict, List
 
 from agent.events import AreaEvent
 from agent.world_state import WorldState
@@ -11,13 +11,24 @@ INFORMAL_COLOR = "\033[33m"
 
 
 class CLIRenderer:
+    def __init__(self, debug: bool = False) -> None:
+        self.debug = debug
+
+    def render_area_overview(self, turn_number: int, world_state: WorldState) -> None:
+        print(f"{TURN_COLOR}======== TURN {turn_number} :: AREA OVERVIEW ========{RESET_COLOR}")
+        for area_id, area in enumerate(world_state.available_areas):
+            occupants = self._characters_in_area(area_id, world_state)
+            occupants_display = ", ".join(occupants) if occupants else "(empty)"
+            print(f"{LABEL_COLOR}{area.name}:{RESET_COLOR} {occupants_display}")
+        print()
+
     def render_turn(
         self,
         turn_number: int,
         events: List[AreaEvent],
         world_state: WorldState,
     ) -> None:
-        print(f"{TURN_COLOR}-------- TURN {turn_number}{RESET_COLOR}")
+        print(f"{TURN_COLOR}-------- TURN {turn_number} RESULTS{RESET_COLOR}")
 
         if not events:
             print("No characters acted this turn.\n")
@@ -30,9 +41,9 @@ class CLIRenderer:
         for area_id, area_events in events_by_area.items():
             area = world_state.get_area_by_id(area_id)
             occupants = self._characters_in_area(area_id, world_state)
-            print(f"{LABEL_COLOR}[{area.name}] {', '.join(occupants)}{RESET_COLOR}")
+            print(f"{LABEL_COLOR}[{area.name}] {', '.join(occupants) or '(empty)'}{RESET_COLOR}")
             for event in area_events:
-                prefix = "(informal)" if event.informal else f"{event.character}:"
+                speaker = f"{event.character} (informal)" if event.informal else event.character
                 color = INFORMAL_COLOR if event.informal else ""
                 reset = RESET_COLOR if color else ""
                 addressed = (
@@ -40,7 +51,7 @@ class CLIRenderer:
                     if event.addressed_to
                     else ""
                 )
-                print(f"  {color}{prefix}{reset} {event.content}{addressed}")
+                print(f"  {color}{speaker}{reset}: {event.content}{addressed}")
             print()
 
     def _characters_in_area(self, area_id: int, world_state: WorldState) -> List[str]:
